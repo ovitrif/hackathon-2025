@@ -7,8 +7,12 @@ use pubky::{Capabilities, Pubky, PubkyAuthFlow};
 use crate::utils::generate_qr_image;
 
 mod utils;
+mod wiki;
 
 fn main() -> Result<(), eframe::Error> {
+    // Initialize logging
+    tracing_subscriber::fmt::init();
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([600.0, 700.0])
@@ -31,9 +35,16 @@ enum AuthState {
     Error(String),
 }
 
+enum AppView {
+    Auth,
+    Wiki,
+}
+
 struct PubkyApp {
     state: Arc<Mutex<AuthState>>,
     qr_texture: Option<egui::TextureHandle>,
+    current_view: AppView,
+    wiki_view: Option<wiki::WikiView>,
 }
 
 impl PubkyApp {
@@ -75,6 +86,8 @@ impl PubkyApp {
         Self {
             state,
             qr_texture: None,
+            current_view: AppView::Auth,
+            wiki_view: None,
         }
     }
 }
@@ -85,83 +98,98 @@ impl eframe::App for PubkyApp {
         ctx.request_repaint();
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(20.0);
-                ui.heading("Pubky Desktop Login");
-                ui.add_space(20.0);
-
-                let state = self.state.lock().unwrap().clone();
-
-                match state {
-                    AuthState::Initializing => {
-                        ui.spinner();
-                        ui.label("Initializing authentication...");
-                    }
-                    AuthState::ShowingQR { ref auth_url } => {
-                        ui.label("Scan this QR code with your Pubky app to login:");
+            match self.current_view {
+                AppView::Auth => {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(20.0);
+                        ui.heading("Pubky Desktop Login");
                         ui.add_space(20.0);
 
-                        // Generate and display QR code
-                        if self.qr_texture.is_none() {
-                            if let Some(qr_image) = generate_qr_image(auth_url) {
-                                self.qr_texture = Some(ui.ctx().load_texture(
-                                    "qr_code",
-                                    qr_image,
-                                    Default::default(),
-                                ));
+                        let state = self.state.lock().unwrap().clone();
+
+                        match state {
+                            AuthState::Initializing => {
+                                ui.spinner();
+                                ui.label("Initializing authentication...");
+                            }
+                            AuthState::ShowingQR { ref auth_url } => {
+                                ui.label("Scan this QR code with your Pubky app to login:");
+                                ui.add_space(20.0);
+
+                                // Generate and display QR code
+                                if self.qr_texture.is_none() {
+                                    if let Some(qr_image) = generate_qr_image(auth_url) {
+                                        self.qr_texture = Some(ui.ctx().load_texture(
+                                            "qr_code",
+                                            qr_image,
+                                            Default::default(),
+                                        ));
+                                    }
+                                }
+
+                                if let Some(texture) = &self.qr_texture {
+                                    // Constrain QR code size to fit within window
+                                    let max_size = egui::vec2(300.0, 300.0);
+                                    ui.add(egui::Image::from_texture(texture).max_size(max_size));
+                                }
+
+                                ui.add_space(20.0);
+                                ui.label("Or use this URL:");
+                                ui.add_space(5.0);
+
+                                // Display URL in a scrollable area
+                                egui::ScrollArea::vertical()
+                                    .max_height(100.0)
+                                    .show(ui, |ui| {
+                                        ui.add(
+                                            egui::TextEdit::multiline(&mut auth_url.as_str())
+                                                .desired_width(f32::INFINITY)
+                                                .interactive(true),
+                                        );
+                                    });
+
+                                ui.add_space(10.0);
+                                ui.label("Waiting for authentication...");
+                                ui.spinner();
+                            }
+                            AuthState::Authenticated { ref public_key } => {
+                                ui.label("✓ Authentication Successful!");
+                                ui.add_space(20.0);
+                                ui.label("Your Public Key:");
+                                ui.add_space(10.0);
+
+                                // Display public key in a scrollable text area
+                                egui::Frame::new()
+                                    .fill(egui::Color32::from_gray(240))
+                                    .inner_margin(10.0)
+                                    .show(ui, |ui| {
+                                        ui.add(
+                                            egui::TextEdit::multiline(&mut public_key.as_str())
+                                                .desired_width(f32::INFINITY)
+                                                .font(egui::TextStyle::Monospace),
+                                        );
+                                    });
+
+                                ui.add_space(20.0);
+                                if ui.button("Open Wiki").clicked() {
+                                    self.current_view = AppView::Wiki;
+                                    self.wiki_view = Some(wiki::WikiView::new());
+                                }
+                            }
+                            AuthState::Error(ref error) => {
+                                ui.colored_label(egui::Color32::RED, "Error");
+                                ui.add_space(10.0);
+                                ui.label(error);
                             }
                         }
-
-                        if let Some(texture) = &self.qr_texture {
-                            // Constrain QR code size to fit within window
-                            let max_size = egui::vec2(300.0, 300.0);
-                            ui.add(egui::Image::from_texture(texture).max_size(max_size));
-                        }
-
-                        ui.add_space(20.0);
-                        ui.label("Or use this URL:");
-                        ui.add_space(5.0);
-
-                        // Display URL in a scrollable area
-                        egui::ScrollArea::vertical()
-                            .max_height(100.0)
-                            .show(ui, |ui| {
-                                ui.add(
-                                    egui::TextEdit::multiline(&mut auth_url.as_str())
-                                        .desired_width(f32::INFINITY)
-                                        .interactive(true),
-                                );
-                            });
-
-                        ui.add_space(10.0);
-                        ui.label("Waiting for authentication...");
-                        ui.spinner();
-                    }
-                    AuthState::Authenticated { ref public_key } => {
-                        ui.label("✓ Authentication Successful!");
-                        ui.add_space(20.0);
-                        ui.label("Your Public Key:");
-                        ui.add_space(10.0);
-
-                        // Display public key in a scrollable text area
-                        egui::Frame::new()
-                            .fill(egui::Color32::from_gray(240))
-                            .inner_margin(10.0)
-                            .show(ui, |ui| {
-                                ui.add(
-                                    egui::TextEdit::multiline(&mut public_key.as_str())
-                                        .desired_width(f32::INFINITY)
-                                        .font(egui::TextStyle::Monospace),
-                                );
-                            });
-                    }
-                    AuthState::Error(ref error) => {
-                        ui.colored_label(egui::Color32::RED, "Error");
-                        ui.add_space(10.0);
-                        ui.label(error);
+                    });
+                }
+                AppView::Wiki => {
+                    if let Some(wiki_view) = &mut self.wiki_view {
+                        wiki_view.render(ui);
                     }
                 }
-            });
+            }
         });
     }
 }
