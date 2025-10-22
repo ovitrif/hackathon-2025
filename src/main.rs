@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::utils::{extract_title, generate_qr_image};
 
+mod compare_wiki;
 mod create_wiki;
 mod edit_wiki;
 mod utils;
@@ -57,6 +58,7 @@ pub(crate) enum ViewState {
     CreateWiki,
     ViewWiki,
     EditWiki,
+    CompareWiki,
 }
 
 pub(crate) struct PubkyApp {
@@ -74,6 +76,13 @@ pub(crate) struct PubkyApp {
     pub(crate) show_copy_tooltip: bool,
     /// Page ID from which content is being forked (when forking)
     pub(crate) forked_from_page_id: Option<String>,
+    // Comparison mode fields
+    pub(crate) comparison_mode: bool,
+    pub(crate) selected_for_compare: Vec<(String, String)>,
+    pub(crate) comparison_content_1: String,
+    pub(crate) comparison_content_2: String,
+    pub(crate) comparison_title_1: String,
+    pub(crate) comparison_title_2: String,
 }
 
 impl PubkyApp {
@@ -130,6 +139,12 @@ impl PubkyApp {
             rt: rt_arc,
             show_copy_tooltip: false,
             forked_from_page_id: None,
+            comparison_mode: false,
+            selected_for_compare: Vec::new(),
+            comparison_content_1: String::new(),
+            comparison_content_2: String::new(),
+            comparison_title_1: String::new(),
+            comparison_title_2: String::new(),
         }
     }
 
@@ -263,12 +278,40 @@ impl eframe::App for PubkyApp {
                                 if ui.button("Create new wiki page").clicked() {
                                     self.view_state = ViewState::CreateWiki;
                                 }
+                                
+                                ui.add_space(10.0);
+
+                                // Compare Articles button
+                                if ui.button(if self.comparison_mode { "Cancel Compare" } else { "Compare Articles" }).clicked() {
+                                    self.comparison_mode = !self.comparison_mode;
+                                    if !self.comparison_mode {
+                                        self.selected_for_compare.clear();
+                                    }
+                                }
+
                                 ui.add_space(20.0);
 
-                                ui.label("My Wiki Posts");
-                                ui.add_space(20.0);
+                                // Show selection status when in comparison mode
+                                if self.comparison_mode {
+                                    ui.label(format!("Selected: {}/2", self.selected_for_compare.len()));
+                                    ui.add_space(10.0);
+                                    
+                                    let can_compare = self.selected_for_compare.len() == 2;
+                                    if ui.add_enabled(can_compare, egui::Button::new("Compare Selected")).clicked() {
+                                        // Set titles and navigate
+                                        if let Some((_, page_id_1)) = self.selected_for_compare.get(0) {
+                                            self.comparison_title_1 = page_id_1.clone();
+                                        }
+                                        if let Some((_, page_id_2)) = self.selected_for_compare.get(1) {
+                                            self.comparison_title_2 = page_id_2.clone();
+                                        }
+                                        self.view_state = ViewState::CompareWiki;
+                                    }
+                                    
+                                    ui.add_space(10.0);
+                                }
 
-                                // List all wiki posts as buttons
+                                // List all wiki posts as buttons or checkboxes
                                 egui::ScrollArea::vertical().show(ui, |ui| {
                                     if file_cache.is_empty() {
                                         ui.label("No wiki posts yet. Create your first one!");
@@ -279,13 +322,35 @@ impl eframe::App for PubkyApp {
                                             let file_name =
                                                 file_url.split('/').last().unwrap_or(file_url);
 
-                                            ui.horizontal(|ui| {
-                                                if ui.button(file_name).clicked() {
-                                                    self.navigate_to_view_wiki_page(&pk, file_name);
-                                                }
-
-                                                ui.label(file_title);
-                                            });
+                                            if self.comparison_mode {
+                                                // Show checkbox in comparison mode
+                                                let own_pk_str = own_pk.to_string();
+                                                let selection_tuple = (own_pk_str.clone(), file_name.to_string());
+                                                let mut is_selected = self.selected_for_compare.contains(&selection_tuple);
+                                                
+                                                let can_select = is_selected || self.selected_for_compare.len() < 2;
+                                                
+                                                ui.add_enabled_ui(can_select, |ui| {
+                                                    ui.horizontal(|ui| {
+                                                        if ui.checkbox(&mut is_selected, file_name).changed() {
+                                                            if is_selected {
+                                                                self.selected_for_compare.push(selection_tuple);
+                                                            } else {
+                                                                self.selected_for_compare.retain(|item| item != &selection_tuple);
+                                                            }
+                                                        }
+                                                        ui.label(file_title);
+                                                    });
+                                                });
+                                            } else {
+                                                // Normal button mode
+                                                ui.horizontal(|ui| {
+                                                    if ui.button(file_name).clicked() {
+                                                        self.navigate_to_view_wiki_page(&pk, file_name);
+                                                    }
+                                                    ui.label(file_title);
+                                                });
+                                            }
                                         }
                                     }
                                 });
@@ -294,6 +359,9 @@ impl eframe::App for PubkyApp {
                             ViewState::EditWiki => edit_wiki::update(self, &session, ctx, ui),
                             ViewState::ViewWiki => {
                                 view_wiki::update(self, own_pk, &pub_storage, ctx, ui)
+                            }
+                            ViewState::CompareWiki => {
+                                compare_wiki::update(self, pub_storage, ctx, ui)
                             }
                         }
                     }
