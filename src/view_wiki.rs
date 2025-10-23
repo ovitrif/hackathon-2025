@@ -1,4 +1,4 @@
-use crate::{PubkyApp, ViewState};
+use crate::{utils::parse_wiki_link, PubkyApp, ViewState};
 
 use eframe::egui::{Context, Ui};
 use egui::CollapsingHeader;
@@ -83,7 +83,7 @@ pub(crate) fn update(
                 // Drain commands to prevent external opening and capture URLs
                 o.commands.retain(|cmd| {
                     if let egui::output::OutputCommand::OpenUrl(open_url) = cmd {
-                        log::info!("Intercepted link click: {}", open_url.url);
+                        log::info!("Intercepted link click: '{}'", open_url.url);
                         urls.push(open_url.url.to_string());
                         false // Remove this command to prevent external opening
                     } else {
@@ -95,12 +95,9 @@ pub(crate) fn update(
 
             // Navigate to clicked URLs
             for url in clicked_urls {
-                let mut parts = url.split('/'); // Split on the '/' character
-                if let (Some(user_pk), Some(page_id)) = (parts.next(), parts.next()) {
-                    app.navigate_to_view_wiki_page(user_pk, page_id);
-                } else {
-                    log::warn!("Invalid Pubky Wiki link: {url}");
-                };
+                if let Some((user_id, page_id)) = parse_wiki_link(&url) {
+                    app.navigate_to_view_wiki_page(&user_id, &page_id);
+                }
             }
         });
 

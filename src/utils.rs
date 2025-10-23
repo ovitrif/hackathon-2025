@@ -34,3 +34,29 @@ pub fn extract_title(input: &str) -> &str {
     let first_line = input.lines().next().unwrap_or("");
     first_line.trim_start_matches("# ")
 }
+
+/// Parse a wiki URL/link and extract user_id and page_id
+/// 
+/// Supports multiple formats:
+/// - `user_id/page_id`
+/// - `pubky://user_id/pub/wiki.app/page_id`
+/// - Any URL ending with `user_id/page_id`
+/// 
+/// Returns `Some((user_id, page_id))` if valid, `None` otherwise
+/// Logs a warning if the URL format is invalid
+pub fn parse_wiki_link(url: &str) -> Option<(String, String)> {
+    // Split on '/' and collect non-empty parts
+    let parts: Vec<&str> = url.split('/').filter(|s| !s.is_empty()).collect();
+    
+    if parts.len() >= 2 {
+        // Take last two non-empty parts as user_id and page_id
+        let user_id = parts[parts.len() - 2].to_string();
+        let page_id = parts[parts.len() - 1].to_string();
+        
+        log::info!("Parsed wiki link: user='{}', page='{}'", user_id, page_id);
+        Some((user_id, page_id))
+    } else {
+        log::warn!("Invalid wiki link format: '{}' (parsed parts: {:?})", url, parts);
+        None
+    }
+}
