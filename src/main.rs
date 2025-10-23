@@ -233,7 +233,7 @@ impl PubkyApp {
     ) {
         self.selected_wiki_user_id = user_pk.to_string();
         self.selected_wiki_page_id = page_id.to_string();
-        self.selected_wiki_fork_urls = self.discover_fork_urls(session, pub_storage, page_id);
+        self.selected_wiki_fork_urls = self.discover_fork_urls(session, pub_storage, user_pk, page_id);
         self.selected_wiki_content.clear();
 
         self.view_state = ViewState::ViewWiki;
@@ -259,17 +259,33 @@ impl PubkyApp {
         &self,
         session: &PubkySession,
         pub_storage: &PublicStorage,
+        viewing_user_pk: &str,
         page_id: &str,
     ) -> Vec<String> {
         let follows = self.get_my_follows(session);
+        let own_pk = session.info().public_key().to_string();
 
         let mut result = vec![];
 
-        // Add the current user's version as a fork (root version)
-        let own_pk = session.info().public_key().to_string();
-        result.push(format!("{own_pk}/{page_id}"));
+        // Add the current user's version (if they have this page)
+        let own_fork_path = format!("pubky://{own_pk}/pub/wiki.app/{page_id}");
+        let exists_fut = pub_storage.exists(own_fork_path);
+        if let Ok(true) = self.rt.block_on(exists_fut) {
+            result.push(format!("{own_pk}/{page_id}"));
+        }
 
+        // Add the article we're currently viewing (if different from own)
+        if viewing_user_pk != own_pk {
+            result.push(format!("{viewing_user_pk}/{page_id}"));
+        }
+
+        // Check all followed users for this page
         for follow_pk in follows {
+            // Skip if already added
+            if follow_pk == own_pk || follow_pk == viewing_user_pk {
+                continue;
+            }
+            
             let fork_path = format!("pubky://{follow_pk}/pub/wiki.app/{page_id}");
             log::info!("fork_path = {fork_path}");
             let exists_fut = pub_storage.exists(fork_path);

@@ -21,7 +21,13 @@ pub(crate) fn update(
     });
 
     let fork_links = app.selected_wiki_fork_urls.clone();
-    CollapsingHeader::new(format!("Available {} forks", fork_links.len())).show(ui, |ui| {
+    let fork_count = fork_links.len();
+    CollapsingHeader::new(format!("Available {} forks", fork_count)).show(ui, |ui| {
+        if fork_count == 1 && fork_links.get(0).map(|url| url.contains(&app.selected_wiki_user_id)).unwrap_or(false) {
+            ui.label("Tip: To see all forks, follow the original author or view their article directly.");
+            ui.add_space(10.0);
+        }
+        
         for fork_link in fork_links {
             if let Some((user_pk, page_id)) = extract_details_wiki_url(&fork_link) {
                 let mut btn_label = format!("Fork: {user_pk}");
