@@ -405,6 +405,9 @@ impl eframe::App for PubkyApp {
                             ViewState::ViewWiki => {
                                 view_wiki::update(self, &session, &pub_storage, ctx, ui)
                             }
+                            ViewState::CompareWiki => {
+                                compare_wiki::update(self, &pub_storage, ctx, ui)
+                            }
                         }
                     }
                     AuthState::Error(ref error) => {
