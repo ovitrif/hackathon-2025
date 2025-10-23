@@ -30,9 +30,30 @@ pub(crate) fn update(
                     btn_label = format!("{btn_label} (current)");
                 }
 
-                if ui.button(btn_label).clicked() {
-                    app.navigate_to_view_wiki_page(&user_pk, &page_id, session, pub_storage);
-                }
+                ui.horizontal(|ui| {
+                    if ui.button(btn_label).clicked() {
+                        app.navigate_to_view_wiki_page(&user_pk, &page_id, session, pub_storage);
+                    }
+                    
+                    // Compare button - don't show for the exact same article we're viewing
+                    let is_current_article = &app.selected_wiki_user_id == &user_pk 
+                        && &app.selected_wiki_page_id == &page_id;
+                    
+                    if !is_current_article {
+                        if ui.button("Compare").clicked() {
+                            // Set up comparison: current article vs this fork
+                            app.selected_for_compare = vec![
+                                (app.selected_wiki_user_id.clone(), app.selected_wiki_page_id.clone()),
+                                (user_pk.clone(), page_id.clone()),
+                            ];
+                            app.comparison_title_1 = app.selected_wiki_page_id.clone();
+                            app.comparison_title_2 = page_id.clone();
+                            app.comparison_content_1 = app.selected_wiki_content.clone();
+                            app.comparison_content_2 = String::new(); // Will be loaded in compare view
+                            app.view_state = ViewState::CompareWiki;
+                        }
+                    }
+                });
             }
         }
     });

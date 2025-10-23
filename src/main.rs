@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::utils::{extract_title, generate_qr_image, get_list};
 
+mod compare_wiki;
 mod create_wiki;
 mod edit_wiki;
 mod utils;
@@ -86,6 +87,7 @@ pub(crate) enum ViewState {
     CreateWiki,
     ViewWiki,
     EditWiki,
+    CompareWiki,
 }
 
 pub(crate) struct PubkyApp {
@@ -106,6 +108,12 @@ pub(crate) struct PubkyApp {
     pub(crate) show_copy_tooltip: bool,
     /// Page ID from which content is being forked (when forking)
     pub(crate) forked_from_page_id: Option<String>,
+    // Comparison fields
+    pub(crate) selected_for_compare: Vec<(String, String)>,
+    pub(crate) comparison_content_1: String,
+    pub(crate) comparison_content_2: String,
+    pub(crate) comparison_title_1: String,
+    pub(crate) comparison_title_2: String,
 }
 
 impl PubkyApp {
@@ -168,6 +176,11 @@ impl PubkyApp {
             rt: rt_arc,
             show_copy_tooltip: false,
             forked_from_page_id: None,
+            selected_for_compare: Vec::new(),
+            comparison_content_1: String::new(),
+            comparison_content_2: String::new(),
+            comparison_title_1: String::new(),
+            comparison_title_2: String::new(),
         }
     }
 
@@ -384,7 +397,6 @@ impl eframe::App for PubkyApp {
                                                         pub_storage,
                                                     );
                                                 }
-
                                                 ui.label(file_title);
                                             });
                                         }
@@ -395,6 +407,9 @@ impl eframe::App for PubkyApp {
                             ViewState::EditWiki => edit_wiki::update(self, &session, ctx, ui),
                             ViewState::ViewWiki => {
                                 view_wiki::update(self, &session, &pub_storage, ctx, ui)
+                            }
+                            ViewState::CompareWiki => {
+                                compare_wiki::update(self, &pub_storage, ctx, ui)
                             }
                         }
                     }
