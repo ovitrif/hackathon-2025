@@ -27,23 +27,41 @@ pub(crate) fn update(
         ui.add_space(5.0);
         for fork_link in fork_links {
             if let Some((user_pk, page_id)) = extract_details_wiki_url(&fork_link) {
-                let mut btn_label = format!("Fork: {user_pk}");
-
-                if &app.selected_wiki_user_id == &user_pk {
-                    btn_label = format!("{btn_label} (current)");
-                }
+                let is_current_article = &app.selected_wiki_user_id == &user_pk 
+                    && &app.selected_wiki_page_id == &page_id;
 
                 ui.horizontal(|ui| {
-                    if ui.button(btn_label).clicked() {
+                    // Truncate user_pk for display
+                    let display_pk = if user_pk.len() > 20 {
+                        format!("{}...", &user_pk[..20])
+                    } else {
+                        user_pk.clone()
+                    };
+                    
+                    let btn_text = if is_current_article {
+                        format!("📄 {} (current)", display_pk)
+                    } else {
+                        format!("📄 {}", display_pk)
+                    };
+                    
+                    let view_button = ui.add_sized(
+                        [300.0, 30.0],
+                        egui::Button::new(egui::RichText::new(btn_text).size(14.0))
+                    );
+                    
+                    if view_button.clicked() {
                         app.navigate_to_view_wiki_page(&user_pk, &page_id, session, pub_storage);
                     }
                     
                     // Compare button - don't show for the exact same article we're viewing
-                    let is_current_article = &app.selected_wiki_user_id == &user_pk 
-                        && &app.selected_wiki_page_id == &page_id;
-                    
                     if !is_current_article {
-                        if ui.button("Compare").clicked() {
+                        ui.add_space(5.0);
+                        let compare_button = ui.add_sized(
+                            [100.0, 30.0],
+                            egui::Button::new(egui::RichText::new("🔍 Compare").size(14.0))
+                        );
+                        
+                        if compare_button.clicked() {
                             // Set up comparison: current article vs this fork
                             app.selected_for_compare = vec![
                                 (app.selected_wiki_user_id.clone(), app.selected_wiki_page_id.clone()),
@@ -57,6 +75,7 @@ pub(crate) fn update(
                         }
                     }
                 });
+                ui.add_space(5.0);
             }
         }
     });

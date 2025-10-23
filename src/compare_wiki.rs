@@ -260,17 +260,24 @@ pub(crate) fn update(
             }
         });
 
-    ui.add_space(20.0);
+    ui.add_space(25.0);
 
-    // Go back button
-    if ui.button("Go back").clicked() {
-        // Clear comparison state
+    // Go back button - styled consistently with other buttons
+    let back_button = ui.add_sized(
+        [120.0, 35.0],
+        egui::Button::new(egui::RichText::new("← Back").size(15.0))
+    );
+    
+    if back_button.clicked() {
+        // Return to viewing the first article (the one we came from)
+        // Keep selected_wiki_user_id and selected_wiki_page_id to return to original article
+        // Clear only comparison-specific state
         app.selected_for_compare.clear();
         app.comparison_content_1.clear();
         app.comparison_content_2.clear();
         app.comparison_title_1.clear();
         app.comparison_title_2.clear();
-        app.view_state = ViewState::WikiList;
+        app.view_state = ViewState::ViewWiki;
     }
 }
 
