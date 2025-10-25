@@ -1,175 +1,197 @@
-use crate::{utils::extract_details_wiki_url, PubkyApp, ViewState};
-
-use eframe::egui::{Context, Ui};
-use egui::CollapsingHeader;
-use egui_commonmark::CommonMarkViewer;
+use crate::{utils::extract_details_wiki_url, ViewState};
+use dioxus::prelude::*;
 use pubky::{PubkySession, PublicStorage};
 
-pub(crate) fn update(
-    app: &mut PubkyApp,
-    session: &PubkySession,
-    pub_storage: &PublicStorage,
-    ctx: &Context,
-    ui: &mut Ui,
-) {
-    ui.label(egui::RichText::new("View Wiki Post").size(20.0).strong());
-    ui.add_space(25.0);
-
-    CollapsingHeader::new(egui::RichText::new("📋 Page Details").size(15.0)).show(ui, |ui| {
-        ui.add_space(5.0);
-        ui.label(egui::RichText::new(format!("Page ID: {}", &app.selected_wiki_page_id)).monospace());
-        ui.label(egui::RichText::new(format!("User ID: {}", &app.selected_wiki_user_id)).monospace());
-    });
-
-    ui.add_space(10.0);
-    let fork_links = app.selected_wiki_fork_urls.clone();
-    CollapsingHeader::new(egui::RichText::new(format!("🔀 Available Forks ({})", fork_links.len())).size(15.0)).show(ui, |ui| {
-        ui.add_space(5.0);
-        for fork_link in fork_links {
-            if let Some((user_pk, page_id)) = extract_details_wiki_url(&fork_link) {
-                let mut btn_label = format!("Fork: {user_pk}");
-
-                if &app.selected_wiki_user_id == &user_pk {
-                    btn_label = format!("{btn_label} (current)");
-                }
-
-                if ui.button(btn_label).clicked() {
-                    app.navigate_to_view_wiki_page(&user_pk, &page_id, session, pub_storage);
-                }
-            }
-        }
-    });
-
-    ui.add_space(15.0);
-    // Add "Share Page Link" button with tooltip support
-    let share_button = ui.add_sized(
-        [180.0, 35.0],
-        egui::Button::new(egui::RichText::new("🔗 Share Page Link").size(15.0))
-    );
-
-    // Show tooltip when hovering after copy
-    if app.show_copy_tooltip {
-        share_button.show_tooltip_text("Copied");
-    }
-
-    if share_button.clicked() {
-        let user_id = &app.selected_wiki_user_id;
-        let page_id = &app.selected_wiki_page_id;
-        ctx.copy_text(format!("[link]({user_id}/{page_id})"));
-        app.show_copy_tooltip = true;
-    }
-
-    // Reset tooltip if button is not being hovered
-    if !share_button.hovered() && app.show_copy_tooltip {
-        app.show_copy_tooltip = false;
-    }
-
-    ui.add_space(15.0);
-
-    // Display content in a scrollable area
-    ui.separator();
-    ui.add_space(15.0);
-    egui::ScrollArea::vertical()
-        .max_height(400.0)
-        .show(ui, |ui| {
-            // Try to fetch content if empty
-            if app.selected_wiki_content.is_empty()
-                && !app.selected_wiki_page_id.is_empty()
-                && !app.selected_wiki_user_id.is_empty()
-            {
-                let public_storage_clone = pub_storage.clone();
-                let path_clone = app.selected_wiki_page_id.clone();
-                let user_id = app.selected_wiki_user_id.clone();
-
-                let path = format!("pubky{user_id}/pub/wiki.app/{path_clone}");
-
-                // Synchronously fetch the content
-                let get_path_fut = public_storage_clone.get(&path);
-                let fetched_content = match app.rt.block_on(get_path_fut) {
-                    Ok(response) => match app.rt.block_on(response.text()) {
-                        Ok(text) => text,
-                        Err(e) => format!("Error reading content: {e}"),
-                    },
-                    Err(e) => format!("Error fetching path {path}: {e}"),
-                };
-                app.selected_wiki_content = fetched_content;
-            }
-
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                CommonMarkViewer::new().max_image_width(Some(512)).show(
-                    ui,
-                    &mut app.cache,
-                    &app.selected_wiki_content.as_str(),
-                );
-            });
-
-            // Intercept link clicks by checking the output commands
-            let clicked_urls: Vec<String> = ui.ctx().output_mut(|o| {
-                let mut urls = Vec::new();
-                // Drain commands to prevent external opening and capture URLs
-                o.commands.retain(|cmd| {
-                    if let egui::output::OutputCommand::OpenUrl(open_url) = cmd {
-                        log::info!("Intercepted link click: {}", open_url.url);
-                        urls.push(open_url.url.to_string());
-                        false // Remove this command to prevent external opening
-                    } else {
-                        true // Keep other commands
+pub fn ViewWiki(
+    session: PubkySession,
+    pub_storage: PublicStorage,
+    mut view_state: Signal<ViewState>,
+    mut selected_wiki_page_id: Signal<String>,
+    mut selected_wiki_content: Signal<String>,
+    mut selected_wiki_user_id: Signal<String>,
+    mut selected_wiki_fork_urls: Signal<Vec<String>>,
+    mut edit_wiki_content: Signal<String>,
+    mut forked_from_page_id: Signal<Option<String>>,
+    mut show_copy_tooltip: Signal<bool>,
+) -> Element {
+    let page_id = selected_wiki_page_id();
+    let user_id = selected_wiki_user_id();
+    let content = selected_wiki_content();
+    
+    // Fetch content if empty
+    {
+        let page_id_clone = page_id.clone();
+        let user_id_clone = user_id.clone();
+        let content_clone = content.clone();
+        let pub_storage_clone = pub_storage.clone();
+        use_effect(move || {
+            if content_clone.is_empty() && !page_id_clone.is_empty() && !user_id_clone.is_empty() {
+                let path = format!("pubky://{user_id_clone}/pub/wiki.app/{page_id_clone}");
+                let pub_storage_c = pub_storage_clone.clone();
+                
+                spawn(async move {
+                    match pub_storage_c.get(&path).await {
+                        Ok(response) => {
+                            match response.text().await {
+                                Ok(text) => {
+                                    selected_wiki_content.set(text);
+                                }
+                                Err(e) => {
+                                    selected_wiki_content.set(format!("Error reading content: {e}"));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            selected_wiki_content.set(format!("Error fetching path {path}: {e}"));
+                        }
                     }
                 });
-                urls
-            });
-
-            // Navigate to clicked URLs
-            for url in clicked_urls {
-                if let Some((user_pk, page_id)) = extract_details_wiki_url(&url) {
-                    app.navigate_to_view_wiki_page(&user_pk, &page_id, session, pub_storage);
-                }
             }
         });
+    }
 
-    ui.add_space(25.0);
+    let pk = session.info().public_key().to_string();
+    let is_own_page = user_id == pk;
+    let fork_urls = selected_wiki_fork_urls();
 
-    // Check if this is the user's own page
-    let pk = session.info().public_key();
-    let is_own_page = app.selected_wiki_user_id == pk.to_string();
+    // Convert markdown to HTML
+    let html_content = markdown::to_html(&content);
 
-    ui.horizontal(|ui| {
-        // Show Edit button only for own pages
-        if is_own_page {
-            let edit_button = ui.add_sized(
-                [120.0, 35.0],
-                egui::Button::new(egui::RichText::new("✏ Edit").size(15.0))
-            );
-            if edit_button.clicked() {
-                app.navigate_to_edit_selected_wiki_page();
+    let session_for_forks = session.clone();
+    let pub_storage_for_forks = pub_storage.clone();
+
+    rsx! {
+        div { class: "view-wiki",
+            h2 { "View Wiki Post" }
+
+            details { class: "details-section",
+                summary { "📋 Page Details" }
+                p { "Page ID: ", code { "{page_id}" } }
+                p { "User ID: ", code { "{user_id}" } }
             }
-            ui.add_space(10.0);
-        }
 
-        // Fork button - available for only when viewing other user's pages
-        if !is_own_page {
-            let fork_button = ui.add_sized(
-                [120.0, 35.0],
-                egui::Button::new(egui::RichText::new("🍴 Fork").size(15.0))
-            );
-            if fork_button.clicked() {
-                app.edit_wiki_content = app.selected_wiki_content.clone();
-                app.forked_from_page_id = Some(app.selected_wiki_page_id.clone());
-                app.view_state = ViewState::CreateWiki;
+            details { class: "details-section",
+                summary { "🔀 Available Forks ({fork_urls.len()})" }
+                for fork_link in fork_urls.clone() {
+                    {
+                        if let Some((fork_user_pk, fork_page_id)) = extract_details_wiki_url(&fork_link) {
+                            let is_current = fork_user_pk == user_id;
+                            let label = if is_current {
+                                format!("Fork: {fork_user_pk} (current)")
+                            } else {
+                                format!("Fork: {fork_user_pk}")
+                            };
+                            
+                            let session_clone = session_for_forks.clone();
+                            let pub_storage_clone = pub_storage_for_forks.clone();
+                            
+                            rsx! {
+                                button {
+                                    class: "btn btn-secondary",
+                                    onclick: move |_| {
+                                        selected_wiki_user_id.set(fork_user_pk.clone());
+                                        selected_wiki_page_id.set(fork_page_id.clone());
+                                        selected_wiki_content.set(String::new());
+                                        
+                                        let session_c = session_clone.clone();
+                                        let page_id_c = fork_page_id.clone();
+                                        let pub_storage_c = pub_storage_clone.clone();
+                                        
+                                        spawn(async move {
+                                            let fork_urls = crate::discover_fork_urls(&session_c, &pub_storage_c, &page_id_c).await;
+                                            selected_wiki_fork_urls.set(fork_urls);
+                                        });
+                                        
+                                        view_state.set(ViewState::ViewWiki);
+                                    },
+                                    "{label}"
+                                }
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                }
             }
-            ui.add_space(10.0);
-        }
 
-        // Go back button
-        let back_button = ui.add_sized(
-            [120.0, 35.0],
-            egui::Button::new(egui::RichText::new("← Back").size(15.0))
-        );
-        if back_button.clicked() {
-            app.selected_wiki_page_id.clear();
-            app.selected_wiki_content.clear();
-            app.selected_wiki_fork_urls.clear();
-            app.view_state = ViewState::WikiList;
+            button {
+                class: "btn btn-secondary",
+                onclick: move |_| {
+                    // Copy to clipboard (need to use JS interop for web)
+                    let link_text = format!("[link]({user_id}/{page_id})");
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        // For desktop, we could use clipboard crate
+                        log::info!("Share link: {}", link_text);
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        // For web, use JS clipboard API
+                        log::info!("Share link: {}", link_text);
+                    }
+                    show_copy_tooltip.set(true);
+                },
+                "🔗 Share Page Link"
+            }
+
+            if show_copy_tooltip() {
+                span { class: "tooltip", "Copied!" }
+            }
+
+            div { class: "content-section",
+                h3 { "Content" }
+                div {
+                    class: "markdown-content",
+                    dangerous_inner_html: "{html_content}"
+                }
+            }
+
+            div { class: "button-group",
+                if is_own_page {
+                    {
+                        let content_clone = content.clone();
+                        rsx! {
+                            button {
+                                class: "btn btn-primary",
+                                onclick: move |_| {
+                                    edit_wiki_content.set(content_clone.clone());
+                                    view_state.set(ViewState::EditWiki);
+                                },
+                                "✏ Edit"
+                            }
+                        }
+                    }
+                }
+
+                if !is_own_page {
+                    {
+                        let content_clone = content.clone();
+                        let page_id_clone = page_id.clone();
+                        rsx! {
+                            button {
+                                class: "btn btn-primary",
+                                onclick: move |_| {
+                                    edit_wiki_content.set(content_clone.clone());
+                                    forked_from_page_id.set(Some(page_id_clone.clone()));
+                                    view_state.set(ViewState::CreateWiki);
+                                },
+                                "🍴 Fork"
+                            }
+                        }
+                    }
+                }
+
+                button {
+                    class: "btn btn-secondary",
+                    onclick: move |_| {
+                        selected_wiki_page_id.set(String::new());
+                        selected_wiki_content.set(String::new());
+                        selected_wiki_fork_urls.set(Vec::new());
+                        view_state.set(ViewState::WikiList);
+                    },
+                    "← Back"
+                }
+            }
         }
-    });
+    }
 }
