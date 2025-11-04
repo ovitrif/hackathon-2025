@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pubky Wiki</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <img src="../assets/logo.png" alt="Logo" class="logo">
+            <h1>Pubky Wiki</h1>
+        </div>
+
+        <div id="auth-view" class="view">
+            <div id="initializing-state" style="display: none;">
+                <div class="spinner"></div>
+                <p>Initializing authentication...</p>
+            </div>
+
+            <div id="qr-state" style="display: none;">
+                <p>Scan this QR code with your Pubky app to login:</p>
+                <img id="qr-image" alt="QR Code" class="qr-code">
+                <p class="waiting-text">Waiting for authentication...</p>
+                <div class="spinner"></div>
+            </div>
+
+            <div id="error-state" style="display: none;">
+                <p class="error-text">Error</p>
+                <p id="error-message"></p>
+            </div>
+        </div>
+
+        <div id="main-view" class="view" style="display: none;">
+            <div id="wiki-list-view" class="content-view">
+                <button id="create-new-btn" class="primary-button">✨ Create New Wiki Page</button>
+                <h2>My Wiki Posts</h2>
+                <div id="wiki-list"></div>
+            </div>
+
+            <div id="create-wiki-view" class="content-view" style="display: none;">
+                <h2>Create New Wiki Page</h2>
+                <label>Content:</label>
+                <textarea id="create-content" rows="15"></textarea>
+                <div class="button-group">
+                    <button id="save-new-btn" class="primary-button">💾 Save</button>
+                    <button id="cancel-create-btn" class="secondary-button">Cancel</button>
+                </div>
+            </div>
+
+            <div id="edit-wiki-view" class="content-view" style="display: none;">
+                <h2>Edit Wiki Page</h2>
+                <label>Content:</label>
+                <textarea id="edit-content" rows="15"></textarea>
+                <div class="button-group">
+                    <button id="update-btn" class="primary-button">✓ Update</button>
+                    <button id="delete-btn" class="danger-button">🗑 Delete</button>
+                    <button id="cancel-edit-btn" class="secondary-button">Cancel</button>
+                </div>
+            </div>
+
+            <div id="view-wiki-view" class="content-view" style="display: none;">
+                <h2>View Wiki Post</h2>
+                <div class="collapsible">
+                    <button class="collapsible-header">📋 Page Details</button>
+                    <div class="collapsible-content" style="display: none;">
+                        <p id="page-details-id"></p>
+                        <p id="page-details-user"></p>
+                    </div>
+                </div>
+                <div class="collapsible">
+                    <button class="collapsible-header" id="forks-header">🔀 Available Forks (0)</button>
+                    <div class="collapsible-content" style="display: none;" id="forks-list"></div>
+                </div>
+                <button id="share-link-btn" class="secondary-button">🔗 Share Page Link</button>
+                <div class="separator"></div>
+                <div id="wiki-content" class="wiki-content"></div>
+                <div class="button-group">
+                    <button id="edit-wiki-btn" class="primary-button" style="display: none;">✏ Edit</button>
+                    <button id="fork-wiki-btn" class="primary-button" style="display: none;">🍴 Fork</button>
+                    <button id="back-btn" class="secondary-button">← Back</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
