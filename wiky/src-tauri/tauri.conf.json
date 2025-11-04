@@ -4,9 +4,6 @@
   "version": "0.1.0",
   "identifier": "com.pubky.wiki",
   "build": {
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "",
-    "devUrl": "../ui",
     "frontendDist": "../ui"
   },
   "app": {

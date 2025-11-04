@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use pubky::{Capabilities, Pubky, PubkyAuthFlow, PubkySession, PublicStorage};
 use serde::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
@@ -25,6 +25,7 @@ pub enum AuthState {
     Error { message: String },
 }
 
+#[derive(Clone)]
 pub struct AppState {
     pub auth_state: Arc<Mutex<AuthState>>,
     pub session: Arc<Mutex<Option<PubkySession>>>,

@@ -1,5 +1,30 @@
-const { invoke } = window.__TAURI__.core;
-const { listen } = window.__TAURI__.event;
+// Wait for Tauri to be available
+async function waitForTauri() {
+    let attempts = 0;
+    while (attempts < 50) {
+        if (window.__TAURI_INTERNALS__) {
+            return true;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+    console.error('Tauri API not available');
+    return false;
+}
+
+async function invoke(cmd, args = {}) {
+    if (!window.__TAURI_INTERNALS__) {
+        throw new Error('Tauri not available');
+    }
+    return window.__TAURI_INTERNALS__.invoke(cmd, args);
+}
+
+async function listen(event, handler) {
+    if (!window.__TAURI_INTERNALS__) {
+        throw new Error('Tauri not available');
+    }
+    return window.__TAURI_INTERNALS__.event.listen(event, handler);
+}
 
 let currentView = 'wiki-list';
 let currentPageId = '';
@@ -8,8 +33,20 @@ let currentPublicKey = '';
 
 // Initialize the app
 async function init() {
+    console.log('Initializing app...');
+
+    // Wait for Tauri to be ready
+    const tauriReady = await waitForTauri();
+    if (!tauriReady) {
+        document.body.innerHTML = '<div style="padding: 20px; color: red;">Error: Tauri API not available</div>';
+        return;
+    }
+
+    console.log('Tauri API ready');
+
     // Listen for auth state changes
     await listen('auth-state-changed', async () => {
+        console.log('Auth state changed event received');
         await updateAuthState();
     });
 
@@ -121,7 +158,9 @@ function setupEventListeners() {
 
 async function updateAuthState() {
     try {
+        console.log('Getting auth state...');
         const state = await invoke('get_auth_state');
+        console.log('Auth state:', state);
 
         // Hide all auth states
         document.getElementById('initializing-state').style.display = 'none';
@@ -131,26 +170,41 @@ async function updateAuthState() {
         document.getElementById('main-view').style.display = 'none';
 
         if (state.type === 'Initializing') {
+            console.log('State: Initializing');
             document.getElementById('auth-view').style.display = 'block';
             document.getElementById('initializing-state').style.display = 'block';
         } else if (state.type === 'ShowingQR') {
+            console.log('State: ShowingQR');
             document.getElementById('auth-view').style.display = 'block';
             document.getElementById('qr-state').style.display = 'block';
 
             // Load QR code
-            const qrImage = await invoke('get_qr_image');
-            document.getElementById('qr-image').src = qrImage;
+            try {
+                console.log('Loading QR image...');
+                const qrImage = await invoke('get_qr_image');
+                console.log('QR image loaded, length:', qrImage ? qrImage.length : 0);
+                document.getElementById('qr-image').src = qrImage;
+            } catch (error) {
+                console.error('Failed to load QR image:', error);
+                document.getElementById('error-state').style.display = 'block';
+                document.getElementById('error-message').textContent = 'Failed to load QR code: ' + error;
+            }
         } else if (state.type === 'Authenticated') {
+            console.log('State: Authenticated');
             document.getElementById('main-view').style.display = 'block';
             currentPublicKey = state.public_key;
             await loadWikiPages();
         } else if (state.type === 'Error') {
+            console.log('State: Error -', state.message);
             document.getElementById('auth-view').style.display = 'block';
             document.getElementById('error-state').style.display = 'block';
             document.getElementById('error-message').textContent = state.message;
         }
     } catch (error) {
         console.error('Failed to get auth state:', error);
+        document.getElementById('auth-view').style.display = 'block';
+        document.getElementById('error-state').style.display = 'block';
+        document.getElementById('error-message').textContent = 'Failed to get auth state: ' + error;
     }
 }
 

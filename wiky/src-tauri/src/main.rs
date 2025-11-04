@@ -4,10 +4,10 @@
 use std::sync::Arc;
 use pubky_wiki_lib::{
     initialize_auth, create_wiki_post, update_wiki_post, delete_wiki_post,
-    AppState, AuthState, utils::{extract_title, generate_qr_image_base64, get_list}
+    AppState, AuthState, utils::{generate_qr_image_base64, get_list}
 };
 use serde::{Deserialize, Serialize};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
 #[derive(Clone, Serialize, Deserialize)]
 struct WikiPage {
@@ -134,7 +134,7 @@ async fn get_wiki_content(
 }
 
 #[tauri::command]
-async fn create_wiki(
+fn create_wiki(
     state: State<'_, AppState>,
     content: String,
     filename: Option<String>,
@@ -144,7 +144,7 @@ async fn create_wiki(
     drop(session_lock);
 
     let filename_ref = filename.as_deref();
-    match create_wiki_post(&session, &content, filename_ref).await {
+    match state.rt.block_on(create_wiki_post(&session, &content, filename_ref)) {
         Ok(path) => {
             // Refresh file cache
             let pub_storage_lock = state.pub_storage.lock().unwrap();
@@ -159,7 +159,7 @@ async fn create_wiki(
 }
 
 #[tauri::command]
-async fn update_wiki(
+fn update_wiki(
     state: State<'_, AppState>,
     page_id: String,
     content: String,
@@ -168,7 +168,7 @@ async fn update_wiki(
     let session = session_lock.as_ref().ok_or("Not authenticated")?.clone();
     drop(session_lock);
 
-    match update_wiki_post(&session, &page_id, &content).await {
+    match state.rt.block_on(update_wiki_post(&session, &page_id, &content)) {
         Ok(_) => {
             // Refresh file cache
             let pub_storage_lock = state.pub_storage.lock().unwrap();
@@ -183,12 +183,12 @@ async fn update_wiki(
 }
 
 #[tauri::command]
-async fn delete_wiki(state: State<'_, AppState>, page_id: String) -> Result<(), String> {
+fn delete_wiki(state: State<'_, AppState>, page_id: String) -> Result<(), String> {
     let session_lock = state.session.lock().unwrap();
     let session = session_lock.as_ref().ok_or("Not authenticated")?.clone();
     drop(session_lock);
 
-    match delete_wiki_post(&session, &page_id).await {
+    match state.rt.block_on(delete_wiki_post(&session, &page_id)) {
         Ok(_) => {
             // Refresh file cache
             let pub_storage_lock = state.pub_storage.lock().unwrap();
@@ -277,17 +277,6 @@ async fn discover_forks(
     Ok(result)
 }
 
-impl Clone for AppState {
-    fn clone(&self) -> Self {
-        Self {
-            auth_state: self.auth_state.clone(),
-            session: self.session.clone(),
-            pub_storage: self.pub_storage.clone(),
-            rt: self.rt.clone(),
-        }
-    }
-}
-
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -313,9 +302,58 @@ async fn main() {
             let app_handle = app.handle().clone();
 
             // Start authentication automatically
-            let state_clone = (*state).clone();
+            let state_clone = Arc::new((*state).clone());
             tauri::async_runtime::spawn(async move {
-                let _ = start_authentication(app_handle, tauri::State::from(&state_clone)).await;
+                match initialize_auth().await {
+                    Ok((pubky, flow, auth_url)) => {
+                        // Update state with QR code
+                        {
+                            let mut auth_state = state_clone.auth_state.lock().unwrap();
+                            *auth_state = AuthState::ShowingQR {
+                                auth_url: auth_url.clone(),
+                            };
+                        }
+
+                        // Emit event to frontend
+                        let _ = app_handle.emit("auth-state-changed", ());
+
+                        // Wait for authentication
+                        match flow.await_approval().await {
+                            Ok(session) => {
+                                let pub_storage = pubky.public_storage();
+
+                                // Store session and pub_storage
+                                {
+                                    let mut session_lock = state_clone.session.lock().unwrap();
+                                    *session_lock = Some(session.clone());
+
+                                    let mut pub_storage_lock = state_clone.pub_storage.lock().unwrap();
+                                    *pub_storage_lock = Some(pub_storage.clone());
+                                }
+
+                                // Fetch files and update state
+                                state_clone.fetch_files_and_update(&session, &pub_storage);
+
+                                // Emit event to frontend
+                                let _ = app_handle.emit("auth-state-changed", ());
+                            }
+                            Err(e) => {
+                                let mut auth_state = state_clone.auth_state.lock().unwrap();
+                                *auth_state = AuthState::Error {
+                                    message: format!("Authentication failed: {e}"),
+                                };
+                                let _ = app_handle.emit("auth-state-changed", ());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let mut auth_state = state_clone.auth_state.lock().unwrap();
+                        *auth_state = AuthState::Error {
+                            message: format!("Failed to initialize: {e}"),
+                        };
+                        let _ = app_handle.emit("auth-state-changed", ());
+                    }
+                }
             });
 
             Ok(())
