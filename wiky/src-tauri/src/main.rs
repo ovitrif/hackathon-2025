@@ -17,7 +17,7 @@ struct WikiPage {
 }
 
 #[tauri::command]
-async fn get_auth_state(state: State<'_, AppState>) -> Result<AuthState, String> {
+fn get_auth_state(state: State<'_, AppState>) -> Result<AuthState, String> {
     let auth_state = state.auth_state.lock().unwrap().clone();
     Ok(auth_state)
 }
@@ -58,7 +58,7 @@ async fn start_authentication(
                         }
 
                         // Fetch files and update state
-                        state_clone.fetch_files_and_update(&session, &pub_storage);
+                        state_clone.fetch_files_and_update(&session, &pub_storage).await;
 
                         // Emit event to frontend
                         let _ = app_handle.emit("auth-state-changed", ());
@@ -86,7 +86,7 @@ async fn start_authentication(
 }
 
 #[tauri::command]
-async fn get_wiki_pages(state: State<'_, AppState>) -> Result<Vec<WikiPage>, String> {
+fn get_wiki_pages(state: State<'_, AppState>) -> Result<Vec<WikiPage>, String> {
     let auth_state = state.auth_state.lock().unwrap().clone();
 
     match auth_state {
@@ -114,18 +114,19 @@ async fn get_wiki_content(
     user_id: String,
     page_id: String,
 ) -> Result<String, String> {
-    let pub_storage_lock = state.pub_storage.lock().unwrap();
-    let pub_storage = pub_storage_lock
-        .as_ref()
-        .ok_or("Not authenticated")?
-        .clone();
-    drop(pub_storage_lock);
+    let pub_storage = {
+        let pub_storage_lock = state.pub_storage.lock().unwrap();
+        pub_storage_lock
+            .as_ref()
+            .ok_or("Not authenticated")?
+            .clone()
+    };
 
     let path = format!("pubky://{user_id}/pub/wiki.app/{page_id}");
 
     let get_path_fut = pub_storage.get(&path);
-    match state.rt.block_on(get_path_fut) {
-        Ok(response) => match state.rt.block_on(response.text()) {
+    match get_path_fut.await {
+        Ok(response) => match response.text().await {
             Ok(text) => Ok(text),
             Err(e) => Err(format!("Error reading content: {e}")),
         },
@@ -134,24 +135,26 @@ async fn get_wiki_content(
 }
 
 #[tauri::command]
-fn create_wiki(
+async fn create_wiki(
     state: State<'_, AppState>,
     content: String,
     filename: Option<String>,
 ) -> Result<String, String> {
-    let session_lock = state.session.lock().unwrap();
-    let session = session_lock.as_ref().ok_or("Not authenticated")?.clone();
-    drop(session_lock);
+    let session = {
+        let session_lock = state.session.lock().unwrap();
+        session_lock.as_ref().ok_or("Not authenticated")?.clone()
+    };
 
     let filename_ref = filename.as_deref();
-    match state.rt.block_on(create_wiki_post(&session, &content, filename_ref)) {
+    match create_wiki_post(&session, &content, filename_ref).await {
         Ok(path) => {
             // Refresh file cache
-            let pub_storage_lock = state.pub_storage.lock().unwrap();
-            let pub_storage = pub_storage_lock.as_ref().unwrap().clone();
-            drop(pub_storage_lock);
+            let pub_storage = {
+                let pub_storage_lock = state.pub_storage.lock().unwrap();
+                pub_storage_lock.as_ref().unwrap().clone()
+            };
 
-            state.fetch_files_and_update(&session, &pub_storage);
+            state.fetch_files_and_update(&session, &pub_storage).await;
             Ok(path)
         }
         Err(e) => Err(format!("Failed to create wiki: {e}")),
@@ -159,23 +162,25 @@ fn create_wiki(
 }
 
 #[tauri::command]
-fn update_wiki(
+async fn update_wiki(
     state: State<'_, AppState>,
     page_id: String,
     content: String,
 ) -> Result<(), String> {
-    let session_lock = state.session.lock().unwrap();
-    let session = session_lock.as_ref().ok_or("Not authenticated")?.clone();
-    drop(session_lock);
+    let session = {
+        let session_lock = state.session.lock().unwrap();
+        session_lock.as_ref().ok_or("Not authenticated")?.clone()
+    };
 
-    match state.rt.block_on(update_wiki_post(&session, &page_id, &content)) {
+    match update_wiki_post(&session, &page_id, &content).await {
         Ok(_) => {
             // Refresh file cache
-            let pub_storage_lock = state.pub_storage.lock().unwrap();
-            let pub_storage = pub_storage_lock.as_ref().unwrap().clone();
-            drop(pub_storage_lock);
+            let pub_storage = {
+                let pub_storage_lock = state.pub_storage.lock().unwrap();
+                pub_storage_lock.as_ref().unwrap().clone()
+            };
 
-            state.fetch_files_and_update(&session, &pub_storage);
+            state.fetch_files_and_update(&session, &pub_storage).await;
             Ok(())
         }
         Err(e) => Err(format!("Failed to update wiki: {e}")),
@@ -183,19 +188,21 @@ fn update_wiki(
 }
 
 #[tauri::command]
-fn delete_wiki(state: State<'_, AppState>, page_id: String) -> Result<(), String> {
-    let session_lock = state.session.lock().unwrap();
-    let session = session_lock.as_ref().ok_or("Not authenticated")?.clone();
-    drop(session_lock);
+async fn delete_wiki(state: State<'_, AppState>, page_id: String) -> Result<(), String> {
+    let session = {
+        let session_lock = state.session.lock().unwrap();
+        session_lock.as_ref().ok_or("Not authenticated")?.clone()
+    };
 
-    match state.rt.block_on(delete_wiki_post(&session, &page_id)) {
+    match delete_wiki_post(&session, &page_id).await {
         Ok(_) => {
             // Refresh file cache
-            let pub_storage_lock = state.pub_storage.lock().unwrap();
-            let pub_storage = pub_storage_lock.as_ref().unwrap().clone();
-            drop(pub_storage_lock);
+            let pub_storage = {
+                let pub_storage_lock = state.pub_storage.lock().unwrap();
+                pub_storage_lock.as_ref().unwrap().clone()
+            };
 
-            state.fetch_files_and_update(&session, &pub_storage);
+            state.fetch_files_and_update(&session, &pub_storage).await;
             Ok(())
         }
         Err(e) => Err(format!("Failed to delete wiki: {e}")),
@@ -203,7 +210,7 @@ fn delete_wiki(state: State<'_, AppState>, page_id: String) -> Result<(), String
 }
 
 #[tauri::command]
-async fn get_qr_image(state: State<'_, AppState>) -> Result<String, String> {
+fn get_qr_image(state: State<'_, AppState>) -> Result<String, String> {
     let auth_state = state.auth_state.lock().unwrap().clone();
 
     if let AuthState::ShowingQR { auth_url } = auth_state {
@@ -216,11 +223,12 @@ async fn get_qr_image(state: State<'_, AppState>) -> Result<String, String> {
 
 #[tauri::command]
 async fn get_follows(state: State<'_, AppState>) -> Result<Vec<String>, String> {
-    let session_lock = state.session.lock().unwrap();
-    let session = session_lock.as_ref().ok_or("Not authenticated")?.clone();
-    drop(session_lock);
+    let session = {
+        let session_lock = state.session.lock().unwrap();
+        session_lock.as_ref().ok_or("Not authenticated")?.clone()
+    };
 
-    match get_list(&session, "/pub/pubky.app/follows/", state.rt.clone()) {
+    match get_list(&session, "/pub/pubky.app/follows/").await {
         Ok(list) => {
             let follows: Vec<String> = list
                 .iter()
@@ -242,15 +250,17 @@ async fn discover_forks(
     state: State<'_, AppState>,
     page_id: String,
 ) -> Result<Vec<String>, String> {
-    let session_lock = state.session.lock().unwrap();
-    let session = session_lock.as_ref().ok_or("Not authenticated")?.clone();
-    drop(session_lock);
+    let session = {
+        let session_lock = state.session.lock().unwrap();
+        session_lock.as_ref().ok_or("Not authenticated")?.clone()
+    };
 
-    let pub_storage_lock = state.pub_storage.lock().unwrap();
-    let pub_storage = pub_storage_lock.as_ref().ok_or("Not authenticated")?.clone();
-    drop(pub_storage_lock);
+    let pub_storage = {
+        let pub_storage_lock = state.pub_storage.lock().unwrap();
+        pub_storage_lock.as_ref().ok_or("Not authenticated")?.clone()
+    };
 
-    let follows = match get_list(&session, "/pub/pubky.app/follows/", state.rt.clone()) {
+    let follows = match get_list(&session, "/pub/pubky.app/follows/").await {
         Ok(list) => list
             .iter()
             .map(|path| path.split('/').last().unwrap_or(path).to_string())
@@ -268,7 +278,7 @@ async fn discover_forks(
         let fork_path = format!("pubky://{follow_pk}/pub/wiki.app/{page_id}");
         let exists_fut = pub_storage.get(&fork_path);
 
-        match state.rt.block_on(exists_fut) {
+        match exists_fut.await {
             Ok(_) => result.push(format!("{follow_pk}/{page_id}")),
             Err(_) => {}
         }
@@ -332,7 +342,7 @@ async fn main() {
                                 }
 
                                 // Fetch files and update state
-                                state_clone.fetch_files_and_update(&session, &pub_storage);
+                                state_clone.fetch_files_and_update(&session, &pub_storage).await;
 
                                 // Emit event to frontend
                                 let _ = app_handle.emit("auth-state-changed", ());

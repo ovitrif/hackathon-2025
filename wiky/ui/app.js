@@ -31,30 +31,59 @@ let currentPageId = '';
 let currentUserId = '';
 let currentPublicKey = '';
 
+function debug(msg) {
+    console.log('[DEBUG]', msg);
+}
+
 // Initialize the app
 async function init() {
-    console.log('Initializing app...');
+    debug('Initializing app...');
 
     // Wait for Tauri to be ready
     const tauriReady = await waitForTauri();
     if (!tauriReady) {
+        debug('ERROR: Tauri API not available');
         document.body.innerHTML = '<div style="padding: 20px; color: red;">Error: Tauri API not available</div>';
         return;
     }
 
-    console.log('Tauri API ready');
+    debug('Tauri API ready');
 
     // Listen for auth state changes
-    await listen('auth-state-changed', async () => {
-        console.log('Auth state changed event received');
-        await updateAuthState();
-    });
+    try {
+        debug('Setting up event listener...');
+        await listen('auth-state-changed', async () => {
+            console.log('Auth state changed event received');
+            await updateAuthState();
+        });
+        debug('Event listener ready');
+    } catch (error) {
+        debug('ERROR setting up listener: ' + error);
+    }
 
     // Set up event listeners
+    debug('Setting up UI listeners...');
     setupEventListeners();
 
     // Update auth state
+    debug('Calling updateAuthState...');
     await updateAuthState();
+
+    // Poll auth state every 2 seconds to catch changes
+    setInterval(async () => {
+        await updateAuthState();
+    }, 2000);
+
+    // Initialize Lucide icons - wait for DOM and library to be ready
+    const initIcons = () => {
+        if (window.lucide && window.lucide.createIcons) {
+            window.lucide.createIcons();
+            console.log('Lucide icons initialized');
+        } else {
+            setTimeout(initIcons, 50);
+        }
+    };
+    setTimeout(initIcons, 100);
 }
 
 function setupEventListeners() {
@@ -158,9 +187,9 @@ function setupEventListeners() {
 
 async function updateAuthState() {
     try {
-        console.log('Getting auth state...');
+        debug('Getting auth state...');
         const state = await invoke('get_auth_state');
-        console.log('Auth state:', state);
+        debug('Auth state: ' + state.type);
 
         // Hide all auth states
         document.getElementById('initializing-state').style.display = 'none';
@@ -170,38 +199,37 @@ async function updateAuthState() {
         document.getElementById('main-view').style.display = 'none';
 
         if (state.type === 'Initializing') {
-            console.log('State: Initializing');
+            debug('State: Initializing');
             document.getElementById('auth-view').style.display = 'block';
             document.getElementById('initializing-state').style.display = 'block';
         } else if (state.type === 'ShowingQR') {
-            console.log('State: ShowingQR');
+            debug('State: ShowingQR - loading QR...');
             document.getElementById('auth-view').style.display = 'block';
             document.getElementById('qr-state').style.display = 'block';
 
             // Load QR code
             try {
-                console.log('Loading QR image...');
                 const qrImage = await invoke('get_qr_image');
-                console.log('QR image loaded, length:', qrImage ? qrImage.length : 0);
+                debug('QR loaded: ' + (qrImage ? qrImage.substring(0, 30) + '...' : 'EMPTY'));
                 document.getElementById('qr-image').src = qrImage;
             } catch (error) {
-                console.error('Failed to load QR image:', error);
+                debug('ERROR loading QR: ' + error);
                 document.getElementById('error-state').style.display = 'block';
                 document.getElementById('error-message').textContent = 'Failed to load QR code: ' + error;
             }
         } else if (state.type === 'Authenticated') {
-            console.log('State: Authenticated');
+            debug('State: Authenticated');
             document.getElementById('main-view').style.display = 'block';
             currentPublicKey = state.public_key;
             await loadWikiPages();
         } else if (state.type === 'Error') {
-            console.log('State: Error -', state.message);
+            debug('State: Error - ' + state.message);
             document.getElementById('auth-view').style.display = 'block';
             document.getElementById('error-state').style.display = 'block';
             document.getElementById('error-message').textContent = state.message;
         }
     } catch (error) {
-        console.error('Failed to get auth state:', error);
+        debug('ERROR: Failed to get auth state: ' + error);
         document.getElementById('auth-view').style.display = 'block';
         document.getElementById('error-state').style.display = 'block';
         document.getElementById('error-message').textContent = 'Failed to get auth state: ' + error;
@@ -217,13 +245,17 @@ async function loadWikiPages() {
             wikiList.innerHTML = '<p class="no-wikis">No wiki posts yet. Create your first one!</p>';
         } else {
             wikiList.innerHTML = pages.map(page => `
-                <div class="wiki-item">
-                    <div>
-                        <button onclick="viewWiki('${currentPublicKey}', '${page.id}')">${page.id}</button>
-                        <span class="title">${page.title}</span>
-                    </div>
+                <div class="wiki-item" onclick="viewWiki('${currentPublicKey}', '${page.id}')">
+                    <span class="title">${page.title}</span>
                 </div>
             `).join('');
+
+            // Reinitialize Lucide icons after DOM update
+            setTimeout(() => {
+                if (window.lucide && window.lucide.createIcons) {
+                    window.lucide.createIcons();
+                }
+            }, 50);
         }
     } catch (error) {
         console.error('Failed to load wiki pages:', error);
@@ -239,7 +271,24 @@ async function viewWiki(userId, pageId) {
         const content = await invoke('get_wiki_content', { userId, pageId });
 
         // Render markdown
-        document.getElementById('wiki-content').innerHTML = marked.parse(content);
+        const renderedHtml = marked.parse(content);
+        document.getElementById('wiki-content').innerHTML = renderedHtml;
+
+        // Handle custom Pubky Wiki links
+        document.getElementById('wiki-content').querySelectorAll('a').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href && !href.startsWith('http') && !href.startsWith('#')) {
+                // Check if it matches userId/pageId pattern
+                const match = href.match(/^([^\/]+)\/(.+)$/);
+                if (match) {
+                    const [, linkUserId, linkPageId] = match;
+                    link.onclick = (e) => {
+                        e.preventDefault();
+                        viewWiki(linkUserId, linkPageId);
+                    };
+                }
+            }
+        });
 
         // Update page details
         document.getElementById('page-details-id').textContent = `Page ID: ${pageId}`;
@@ -248,15 +297,29 @@ async function viewWiki(userId, pageId) {
         // Load forks
         const forks = await invoke('discover_forks', { pageId });
         const forksHeader = document.getElementById('forks-header');
-        forksHeader.textContent = `🔀 Available Forks (${forks.length})`;
+        forksHeader.innerHTML = `<i data-lucide="git-branch"></i><span>Available Forks (${forks.length})</span>`;
+        if (window.lucide && window.lucide.createIcons) {
+            window.lucide.createIcons();
+        }
 
         const forksList = document.getElementById('forks-list');
         forksList.innerHTML = forks.map(fork => {
             const [forkUserId, forkPageId] = fork.split('/');
-            const isCurrent = forkUserId === userId ? ' (current)' : '';
+            const isCurrent = forkUserId === userId;
+            const isOwn = forkUserId === currentPublicKey;
+
+            let displayName;
+            if (isOwn) {
+                displayName = 'Your fork' + (isCurrent ? ' (viewing)' : '');
+            } else {
+                // Truncate the public key: show first 8 and last 4 characters
+                const truncated = forkUserId.substring(0, 8) + '...' + forkUserId.substring(forkUserId.length - 4);
+                displayName = truncated + (isCurrent ? ' (viewing)' : '');
+            }
+
             return `
                 <div class="fork-item">
-                    <button onclick="viewWiki('${forkUserId}', '${forkPageId}')">Fork: ${forkUserId}${isCurrent}</button>
+                    <button onclick="viewWiki('${forkUserId}', '${forkPageId}')">${displayName}</button>
                 </div>
             `;
         }).join('');
@@ -267,6 +330,11 @@ async function viewWiki(userId, pageId) {
         document.getElementById('fork-wiki-btn').style.display = !isOwnPage ? 'inline-block' : 'none';
 
         showView('view-wiki');
+
+        // Reinitialize Lucide icons after DOM update
+        if (window.lucide && window.lucide.createIcons) {
+            window.lucide.createIcons();
+        }
     } catch (error) {
         alert('Failed to load wiki content: ' + error);
     }

@@ -44,17 +44,15 @@ impl AppState {
         })
     }
 
-    pub fn fetch_files_and_update(&self, session: &PubkySession, pub_storage: &PublicStorage) {
+    pub async fn fetch_files_and_update(&self, session: &PubkySession, pub_storage: &PublicStorage) {
         let mut file_cache = HashMap::new();
 
-        match get_list(session, "/pub/wiki.app/", self.rt.clone()) {
+        match get_list(session, "/pub/wiki.app/").await {
             Ok(file_urls) => {
                 for file_url in &file_urls {
-                    let get_path_fut = pub_storage.get(file_url);
-                    match self.rt.block_on(get_path_fut) {
+                    match pub_storage.get(file_url).await {
                         Ok(response) => {
-                            let response_text_fut = response.text();
-                            match self.rt.block_on(response_text_fut) {
+                            match response.text().await {
                                 Ok(content) => {
                                     let file_title = extract_title(&content);
                                     file_cache.insert(file_url.clone(), file_title.to_string());

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Pubky Wiki",
+  "productName": "Wiky",
   "version": "0.1.0",
   "identifier": "com.pubky.wiki",
   "build": {
@@ -9,11 +9,12 @@
   "app": {
     "windows": [
       {
-        "title": "Pubky Wiki",
-        "width": 600,
-        "height": 700,
+        "title": "Wiky",
+        "width": 1280,
+        "height": 960,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "center": true
       }
     ],
     "security": {

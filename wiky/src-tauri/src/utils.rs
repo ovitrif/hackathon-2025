@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
 use pubky::PubkySession;
 use qrcode::QrCode;
-use tokio::runtime::Runtime;
 use image::{DynamicImage, ImageFormat};
 use base64::{Engine as _, engine::general_purpose};
 
@@ -43,10 +40,9 @@ pub fn extract_details_wiki_url(url: &str) -> Option<(String, String)> {
 }
 
 /// List files from the homeserver
-pub fn get_list(
+pub async fn get_list(
     session: &PubkySession,
     folder_path: &str,
-    rt: Arc<Runtime>,
 ) -> anyhow::Result<Vec<String>> {
     let session_storage = session.storage();
     let session_storage_list_fut = session_storage.list(folder_path).unwrap().send();
@@ -54,7 +50,7 @@ pub fn get_list(
     log::info!("listing {folder_path}");
 
     let mut result_list = vec![];
-    for entry in rt.block_on(session_storage_list_fut)? {
+    for entry in session_storage_list_fut.await? {
         result_list.push(entry.to_pubky_url());
     }
 
