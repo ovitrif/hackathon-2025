@@ -121,18 +121,6 @@ function setupEventListeners() {
         }
     });
 
-    document.getElementById('delete-btn').addEventListener('click', async () => {
-        if (confirm('Are you sure you want to delete this wiki page?')) {
-            try {
-                await invoke('delete_wiki', { pageId: currentPageId });
-                showView('wiki-list');
-                await loadWikiPages();
-            } catch (error) {
-                alert('Failed to delete wiki: ' + error);
-            }
-        }
-    });
-
     document.getElementById('cancel-edit-btn').addEventListener('click', () => {
         showView('wiki-list');
     });
@@ -171,6 +159,31 @@ function setupEventListeners() {
             btn.textContent = originalText;
         }, 2000);
     });
+
+    // Use event delegation for delete button - debug version
+    document.body.addEventListener('click', async (e) => {
+        console.log('Click detected on:', e.target, 'ID:', e.target.id);
+        const deleteBtn = e.target.closest('#delete-wiki-btn');
+        console.log('Closest delete-wiki-btn:', deleteBtn);
+
+        if (deleteBtn) {
+            console.log('Delete button clicked, pageId:', currentPageId);
+            e.preventDefault();
+            e.stopPropagation();
+            if (confirm('Are you sure you want to delete this wiki page?')) {
+                try {
+                    console.log('Calling delete_wiki with pageId:', currentPageId);
+                    await invoke('delete_wiki', { pageId: currentPageId });
+                    console.log('Delete successful');
+                    showView('wiki-list');
+                    await loadWikiPages();
+                } catch (error) {
+                    console.error('Delete error:', error);
+                    alert('Failed to delete wiki: ' + error);
+                }
+            }
+        }
+    }, true); // Use capture phase
 
     // Collapsible headers
     document.querySelectorAll('.collapsible-header').forEach(header => {
@@ -324,9 +337,10 @@ async function viewWiki(userId, pageId) {
             `;
         }).join('');
 
-        // Show/hide edit and fork buttons
+        // Show/hide edit, delete, and fork buttons
         const isOwnPage = userId === currentPublicKey;
         document.getElementById('edit-wiki-btn').style.display = isOwnPage ? 'inline-block' : 'none';
+        document.getElementById('delete-wiki-btn').style.display = isOwnPage ? 'inline-block' : 'none';
         document.getElementById('fork-wiki-btn').style.display = !isOwnPage ? 'inline-block' : 'none';
 
         showView('view-wiki');
@@ -353,6 +367,23 @@ function showView(viewName) {
 
 // Make viewWiki available globally
 window.viewWiki = viewWiki;
+
+// Make delete handler available globally
+window.handleDeleteClick = async function() {
+    console.log('handleDeleteClick called, pageId:', currentPageId);
+    if (confirm('Are you sure you want to delete this wiki page?')) {
+        try {
+            console.log('Calling delete_wiki with pageId:', currentPageId);
+            await invoke('delete_wiki', { pageId: currentPageId });
+            console.log('Delete successful');
+            showView('wiki-list');
+            await loadWikiPages();
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('Failed to delete wiki: ' + error);
+        }
+    }
+};
 
 // Initialize the app when DOM is ready
 if (document.readyState === 'loading') {

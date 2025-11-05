@@ -43,10 +43,10 @@ h1 {
 }
 
 h2 {
-    font-size: 22px;
-    font-weight: 700;
+    font-size: 28px;
+    font-weight: 900;
     margin-bottom: 24px;
-    margin-top: 12px;
+    margin-top: 0;
     color: #1a1a1a;
 }
 
@@ -99,129 +99,44 @@ h2 {
 
 .content-view {
     text-align: left;
+    max-width: 800px;
 }
 
-.primary-button {
+/* Primary color variant - only colors */
+.primary {
     background: #a3e635;
     color: #1a1a1a;
-    border: none;
-    padding: 12px 20px;
-    border-radius: 6px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    margin: 5px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: all 0.2s;
-    min-height: 44px;
-    box-sizing: border-box;
+    border-color: #a3e635;
 }
 
-.primary-button i {
-    width: 18px;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.primary-button span {
-    line-height: 1;
-}
-
-.primary-button i svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    vertical-align: middle;
-}
-
-.primary-button span {
-    line-height: 1;
-}
-
-.primary-button:hover {
+.primary:hover {
     background: #84cc16;
-    transform: translateY(-1px);
+    border-color: #84cc16;
 }
 
-.secondary-button {
+/* Secondary color variant - only colors */
+.secondary {
     background: white;
     color: #374151;
-    border: 1px solid #e5e7eb;
-    padding: 12px 20px;
-    border-radius: 6px;
-    font-size: 15px;
-    cursor: pointer;
-    margin: 5px;
-    font-weight: 500;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    justify-content: center;
-    line-height: 1.2;
-    min-height: 44px;
+    border-color: #e5e7eb;
 }
 
-.secondary-button i {
-    width: 18px;
-    height: 18px;
-    display: inline-block;
-    vertical-align: middle;
-    flex-shrink: 0;
-}
-
-.secondary-button i svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-.secondary-button:hover {
+.secondary:hover {
     background: #f9fafb;
     border-color: #a3e635;
     color: #1a1a1a;
 }
 
-.danger-button {
+/* Danger color variant - only colors */
+.danger {
     background: #e74c3c;
     color: white;
-    border: none;
-    padding: 12px 20px;
-    border-radius: 5px;
-    font-size: 15px;
-    cursor: pointer;
-    margin: 5px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    line-height: 1.2;
-    min-height: 44px;
+    border-color: #e74c3c;
 }
 
-.danger-button i {
-    width: 18px;
-    height: 18px;
-    display: inline-block;
-    vertical-align: middle;
-    flex-shrink: 0;
-}
-
-.danger-button i svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-.danger-button:hover {
+.danger:hover {
     background: #c0392b;
+    border-color: #c0392b;
 }
 
 .button-group {
@@ -231,17 +146,37 @@ h2 {
     align-items: center;
 }
 
-.button-group .secondary-button {
-    width: auto;
+.button-group button {
     flex: 1;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+    min-height: 44px;
+    box-sizing: border-box;
 }
 
-.button-group .primary-button {
-    flex: 1;
+.button-group button i {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
 }
 
-.button-group .danger-button {
-    flex: 1;
+.button-group button i svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.button-group button span {
+    line-height: 1;
 }
 
 textarea {
@@ -261,28 +196,31 @@ label {
 }
 
 #wiki-list {
-    margin-top: 15px;
+    margin-top: 0;
+    max-width: 800px;
 }
 
 .wiki-item {
-    padding: 15px;
-    margin-bottom: 10px;
-    background: #ecf0f1;
-    border-radius: 5px;
+    padding: 16px 0;
+    margin-bottom: 0;
+    background: transparent;
+    border-bottom: 1px solid #e5e7eb;
     display: flex;
     justify-content: flex-start;
     align-items: center;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s;
 }
 
-.wiki-item:hover {
-    background: #d5dbdb;
+.wiki-item:hover .title {
+    color: #84cc16;
 }
 
 .wiki-item .title {
-    font-weight: 600;
-    font-size: 16px;
+    font-weight: 700;
+    font-size: 20px;
+    color: #1a1a1a;
+    line-height: 1.4;
 }
 
 .collapsible {
@@ -297,7 +235,7 @@ label {
     text-align: left;
     cursor: pointer;
     border-radius: 6px;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
     transition: all 0.2s;
     display: flex;
@@ -307,8 +245,8 @@ label {
 }
 
 .collapsible-header i {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
     display: inline-block;
     vertical-align: middle;
@@ -359,20 +297,87 @@ label {
     flex-shrink: 0;
     position: sticky;
     top: 20px;
+    max-width: 300px;
 }
 
 .sidebar-actions {
     margin-top: 16px;
+    width: 100%;
+    max-width: 100%;
 }
 
-.sidebar-actions button {
+/* Sidebar button uses collapsible-header base styles */
+.sidebar-button {
+    background: white;
+    border: 1px solid #e5e7eb;
+    padding: 12px 16px;
     width: 100%;
-    margin: 8px 0;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    line-height: 1;
+    margin-bottom: 12px;
+    box-sizing: border-box;
 }
 
-.sidebar-actions .primary-button {
+.sidebar-button span {
+    line-height: 1;
+}
+
+.sidebar-button i {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.sidebar-button i svg {
+    display: block;
     width: 100%;
-    justify-content: center;
+    height: 100%;
+    stroke-width: 2;
+    vertical-align: middle;
+}
+
+/* Apply color variants to sidebar buttons */
+.sidebar-button.primary {
+    background: #a3e635;
+    color: #1a1a1a;
+    border-color: #a3e635;
+}
+
+.sidebar-button.primary:hover {
+    background: #84cc16;
+    border-color: #84cc16;
+}
+
+.sidebar-button.secondary {
+    background: white;
+    color: #374151;
+    border-color: #e5e7eb;
+}
+
+.sidebar-button.secondary:hover {
+    background: #f9fafb;
+    border-color: #a3e635;
+}
+
+.sidebar-button.danger {
+    background: #e74c3c;
+    color: white;
+    border-color: #e74c3c;
+}
+
+.sidebar-button.danger:hover {
+    background: #c0392b;
+    border-color: #c0392b;
 }
 
 .wiki-view-content {
@@ -484,11 +489,11 @@ label {
 }
 
 #create-new-btn {
-    width: 100%;
+    width: auto;
     max-width: 300px;
-    display: flex;
-    margin: 30px auto 30px;
-    padding: 14px 20px;
+    display: inline-flex;
+    margin: 0 0 32px 0;
+    padding: 14px 24px;
 }
 
 .no-wikis {
