@@ -160,39 +160,25 @@ function setupEventListeners() {
         }, 2000);
     });
 
-    // Use event delegation for delete button - debug version
-    document.body.addEventListener('click', async (e) => {
-        console.log('Click detected on:', e.target, 'ID:', e.target.id);
-        const deleteBtn = e.target.closest('#delete-wiki-btn');
-        console.log('Closest delete-wiki-btn:', deleteBtn);
-
-        if (deleteBtn) {
-            console.log('Delete button clicked, pageId:', currentPageId);
-            e.preventDefault();
-            e.stopPropagation();
-            if (confirm('Are you sure you want to delete this wiki page?')) {
-                try {
-                    console.log('Calling delete_wiki with pageId:', currentPageId);
-                    await invoke('delete_wiki', { pageId: currentPageId });
-                    console.log('Delete successful');
-                    showView('wiki-list');
-                    await loadWikiPages();
-                } catch (error) {
-                    console.error('Delete error:', error);
-                    alert('Failed to delete wiki: ' + error);
-                }
+    // Delete button handler
+    document.getElementById('delete-wiki-btn').addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete this wiki page?')) {
+            try {
+                await invoke('delete_wiki', { pageId: currentPageId });
+                showView('wiki-list');
+                await loadWikiPages();
+            } catch (error) {
+                alert('Failed to delete wiki: ' + error);
             }
         }
-    }, true); // Use capture phase
+    });
 
     // Collapsible headers
     document.querySelectorAll('.collapsible-header').forEach(header => {
         header.addEventListener('click', (e) => {
-            const content = e.target.nextElementSibling;
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-            } else {
-                content.style.display = 'none';
+            const content = e.currentTarget.nextElementSibling;
+            if (content) {
+                content.classList.toggle('hidden');
             }
         });
     });
@@ -204,21 +190,21 @@ async function updateAuthState() {
         const state = await invoke('get_auth_state');
         debug('Auth state: ' + state.type);
 
-        // Hide all auth states
-        document.getElementById('initializing-state').style.display = 'none';
-        document.getElementById('qr-state').style.display = 'none';
-        document.getElementById('error-state').style.display = 'none';
-        document.getElementById('auth-view').style.display = 'none';
-        document.getElementById('main-view').style.display = 'none';
+        // Hide all states
+        document.getElementById('initializing-state').classList.add('hidden');
+        document.getElementById('qr-state').classList.add('hidden');
+        document.getElementById('error-state').classList.add('hidden');
+        document.getElementById('auth-view').classList.add('hidden');
+        document.getElementById('main-view').classList.add('hidden');
 
         if (state.type === 'Initializing') {
             debug('State: Initializing');
-            document.getElementById('auth-view').style.display = 'block';
-            document.getElementById('initializing-state').style.display = 'block';
+            document.getElementById('auth-view').classList.remove('hidden');
+            document.getElementById('initializing-state').classList.remove('hidden');
         } else if (state.type === 'ShowingQR') {
             debug('State: ShowingQR - loading QR...');
-            document.getElementById('auth-view').style.display = 'block';
-            document.getElementById('qr-state').style.display = 'block';
+            document.getElementById('auth-view').classList.remove('hidden');
+            document.getElementById('qr-state').classList.remove('hidden');
 
             // Load QR code
             try {
@@ -227,24 +213,24 @@ async function updateAuthState() {
                 document.getElementById('qr-image').src = qrImage;
             } catch (error) {
                 debug('ERROR loading QR: ' + error);
-                document.getElementById('error-state').style.display = 'block';
+                document.getElementById('error-state').classList.remove('hidden');
                 document.getElementById('error-message').textContent = 'Failed to load QR code: ' + error;
             }
         } else if (state.type === 'Authenticated') {
             debug('State: Authenticated');
-            document.getElementById('main-view').style.display = 'block';
+            document.getElementById('main-view').classList.remove('hidden');
             currentPublicKey = state.public_key;
             await loadWikiPages();
         } else if (state.type === 'Error') {
             debug('State: Error - ' + state.message);
-            document.getElementById('auth-view').style.display = 'block';
-            document.getElementById('error-state').style.display = 'block';
+            document.getElementById('auth-view').classList.remove('hidden');
+            document.getElementById('error-state').classList.remove('hidden');
             document.getElementById('error-message').textContent = state.message;
         }
     } catch (error) {
         debug('ERROR: Failed to get auth state: ' + error);
-        document.getElementById('auth-view').style.display = 'block';
-        document.getElementById('error-state').style.display = 'block';
+        document.getElementById('auth-view').classList.remove('hidden');
+        document.getElementById('error-state').classList.remove('hidden');
         document.getElementById('error-message').textContent = 'Failed to get auth state: ' + error;
     }
 }
@@ -331,17 +317,23 @@ async function viewWiki(userId, pageId) {
             }
 
             return `
-                <div class="fork-item">
-                    <button onclick="viewWiki('${forkUserId}', '${forkPageId}')">${displayName}</button>
+                <div class="my-2">
+                    <button onclick="viewWiki('${forkUserId}', '${forkPageId}')" class="w-full flex items-center px-4 py-3 bg-lime-400 hover:bg-lime-500 text-gray-900 font-semibold rounded-lg transition-all hover:translate-x-0.5">${displayName}</button>
                 </div>
             `;
         }).join('');
 
         // Show/hide edit, delete, and fork buttons
         const isOwnPage = userId === currentPublicKey;
-        document.getElementById('edit-wiki-btn').style.display = isOwnPage ? 'inline-block' : 'none';
-        document.getElementById('delete-wiki-btn').style.display = isOwnPage ? 'inline-block' : 'none';
-        document.getElementById('fork-wiki-btn').style.display = !isOwnPage ? 'inline-block' : 'none';
+        if (isOwnPage) {
+            document.getElementById('edit-wiki-btn').classList.remove('hidden');
+            document.getElementById('delete-wiki-btn').classList.remove('hidden');
+            document.getElementById('fork-wiki-btn').classList.add('hidden');
+        } else {
+            document.getElementById('edit-wiki-btn').classList.add('hidden');
+            document.getElementById('delete-wiki-btn').classList.add('hidden');
+            document.getElementById('fork-wiki-btn').classList.remove('hidden');
+        }
 
         showView('view-wiki');
 
@@ -357,33 +349,16 @@ async function viewWiki(userId, pageId) {
 function showView(viewName) {
     // Hide all content views
     document.querySelectorAll('.content-view').forEach(view => {
-        view.style.display = 'none';
+        view.classList.add('hidden');
     });
 
     // Show the selected view
-    document.getElementById(`${viewName}-view`).style.display = 'block';
+    document.getElementById(`${viewName}-view`).classList.remove('hidden');
     currentView = viewName;
 }
 
 // Make viewWiki available globally
 window.viewWiki = viewWiki;
-
-// Make delete handler available globally
-window.handleDeleteClick = async function() {
-    console.log('handleDeleteClick called, pageId:', currentPageId);
-    if (confirm('Are you sure you want to delete this wiki page?')) {
-        try {
-            console.log('Calling delete_wiki with pageId:', currentPageId);
-            await invoke('delete_wiki', { pageId: currentPageId });
-            console.log('Delete successful');
-            showView('wiki-list');
-            await loadWikiPages();
-        } catch (error) {
-            console.error('Delete error:', error);
-            alert('Failed to delete wiki: ' + error);
-        }
-    }
-};
 
 // Initialize the app when DOM is ready
 if (document.readyState === 'loading') {

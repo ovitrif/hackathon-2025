@@ -196,13 +196,16 @@ async fn delete_wiki(state: State<'_, AppState>, page_id: String) -> Result<(), 
 
     match delete_wiki_post(&session, &page_id).await {
         Ok(_) => {
-            // Refresh file cache
-            let pub_storage = {
-                let pub_storage_lock = state.pub_storage.lock().unwrap();
-                pub_storage_lock.as_ref().unwrap().clone()
-            };
-
-            state.fetch_files_and_update(&session, &pub_storage).await;
+            // Remove from file cache directly (like the old implementation)
+            let mut auth_state = state.auth_state.lock().unwrap();
+            if let AuthState::Authenticated {
+                ref public_key,
+                ref mut file_cache,
+            } = *auth_state
+            {
+                let file_url = format!("pubky://{}/pub/wiki.app/{}", public_key, page_id);
+                file_cache.remove(&file_url);
+            }
             Ok(())
         }
         Err(e) => Err(format!("Failed to delete wiki: {e}")),
