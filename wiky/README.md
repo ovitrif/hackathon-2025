@@ -59,6 +59,53 @@ Alternatively, you can run from source code. Clone the repo and:
 cargo run
 ```
 
+## Build & Run Locally
+
+###  Prerequisites ((Linux)
+
+Before building on Linux, install these system dependencies:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+    libgtk-3-dev \
+    libwebkit2gtk-4.0-dev \
+    libayatana-appindicator3-dev \
+    librsvg2-dev
+```
+
+1. Navigate to the src-tauri directory:
+   ```bash
+   cd wiky/src-tauri
+   ```
+
+2. Build the project:
+   ```bash
+   cargo build
+   ```
+
+3. Run the application:
+   ```bash
+   cargo run
+   ```
+
+
+### Tauri Commands
+
+The following commands are available from the frontend:
+
+- `get_auth_state()` - Get current authentication state
+- `start_authentication()` - Start auth flow
+- `get_wiki_pages()` - List all wiki pages
+- `get_wiki_content(userId, pageId)` - Get wiki content
+- `create_wiki(content, filename?)` - Create new wiki
+- `update_wiki(pageId, content)` - Update existing wiki
+- `delete_wiki(pageId)` - Delete wiki
+- `get_qr_image()` - Get QR code as base64 image
+- `get_follows()` - Get list of followed users
+- `discover_forks(pageId)` - Find forks of a page
+
+
 ## License
 
 MIT

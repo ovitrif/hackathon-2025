@@ -1,35 +1,19 @@
-use std::sync::Arc;
-
 use pubky::PubkySession;
 use qrcode::QrCode;
-use tokio::runtime::Runtime;
+use image::{DynamicImage, ImageFormat};
+use base64::{Engine as _, engine::general_purpose};
 
-pub fn generate_qr_image(url: &str) -> Option<egui::ColorImage> {
+pub fn generate_qr_image_base64(url: &str) -> Option<String> {
     let qr = QrCode::new(url.as_bytes()).ok()?;
     let qr_image = qr.render::<image::Luma<u8>>().build();
 
-    let (width, height) = qr_image.dimensions();
-    let scale = 2; // Scale QR code to fit within window
-    let scaled_width = (width * scale) as usize;
-    let scaled_height = (height * scale) as usize;
+    // Convert to PNG and encode as base64
+    let dynamic_image = DynamicImage::ImageLuma8(qr_image);
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    dynamic_image.write_to(&mut buffer, ImageFormat::Png).ok()?;
+    let base64_string = general_purpose::STANDARD.encode(buffer.into_inner());
 
-    let mut pixels = Vec::with_capacity(scaled_width * scaled_height);
-
-    for y in 0..scaled_height {
-        for x in 0..scaled_width {
-            let orig_x = x as u32 / scale;
-            let orig_y = y as u32 / scale;
-            let pixel = qr_image.get_pixel(orig_x, orig_y);
-            let color = if pixel[0] < 128 {
-                egui::Color32::BLACK
-            } else {
-                egui::Color32::WHITE
-            };
-            pixels.push(color);
-        }
-    }
-
-    Some(egui::ColorImage::new([scaled_width, scaled_height], pixels))
+    Some(format!("data:image/png;base64,{}", base64_string))
 }
 
 /// In this context, the title is the readable text on the 1st line
@@ -56,10 +40,9 @@ pub fn extract_details_wiki_url(url: &str) -> Option<(String, String)> {
 }
 
 /// List files from the homeserver
-pub fn get_list(
+pub async fn get_list(
     session: &PubkySession,
     folder_path: &str,
-    rt: Arc<Runtime>,
 ) -> anyhow::Result<Vec<String>> {
     let session_storage = session.storage();
     let session_storage_list_fut = session_storage.list(folder_path).unwrap().send();
@@ -67,7 +50,7 @@ pub fn get_list(
     log::info!("listing {folder_path}");
 
     let mut result_list = vec![];
-    for entry in rt.block_on(session_storage_list_fut)? {
+    for entry in session_storage_list_fut.await? {
         result_list.push(entry.to_pubky_url());
     }
 
