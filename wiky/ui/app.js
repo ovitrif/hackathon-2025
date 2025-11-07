@@ -64,7 +64,9 @@ async function init() {
 
     // Set up event listeners
     debug('Setting up UI listeners...');
+    console.log('[SETUP] About to call setupEventListeners');
     setupEventListeners();
+    console.log('[SETUP] setupEventListeners completed');
 
     // Update auth state
     debug('Calling updateAuthState...');
@@ -88,6 +90,8 @@ async function init() {
 }
 
 function setupEventListeners() {
+    console.log('[LISTENERS] setupEventListeners started');
+
     // Create wiki view
     document.getElementById('create-new-btn').addEventListener('click', () => {
         showView('create-wiki');
@@ -170,24 +174,38 @@ function setupEventListeners() {
     });
 
     // Delete button handler
-    document.getElementById('delete-wiki-btn').addEventListener('click', async (e) => {
-        console.log('Delete button clicked!', 'currentPageId:', currentPageId);
-        e.preventDefault();
-        e.stopPropagation();
+    console.log('[DELETE] About to attach delete button listener');
+    const deleteBtn = document.getElementById('delete-wiki-btn');
+    console.log('[DELETE] Delete button element:', deleteBtn);
+    console.log('[DELETE] Delete button exists?', !!deleteBtn);
+    console.log('[DELETE] Delete button classList:', deleteBtn?.classList.toString());
 
-        if (confirm('Are you sure you want to delete this wiki page?')) {
-            try {
-                console.log('Calling delete_wiki with pageId:', currentPageId);
-                await invoke('delete_wiki', { pageId: currentPageId });
-                console.log('Delete successful');
-                showView('wiki-list');
-                await loadWikiPages();
-            } catch (error) {
-                console.error('Delete error:', error);
-                alert('Failed to delete wiki: ' + error);
+    if (!deleteBtn) {
+        console.error('[DELETE] DELETE BUTTON NOT FOUND!');
+    } else {
+        deleteBtn.addEventListener('click', async (e) => {
+            console.log('[DELETE] !!!! CLICK HANDLER FIRED !!!!');
+            console.log('[DELETE] Event:', e);
+            console.log('[DELETE] Target:', e.target);
+            console.log('[DELETE] CurrentPageId:', currentPageId);
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (confirm('Are you sure you want to delete this wiki page?')) {
+                try {
+                    console.log('[DELETE] Calling delete_wiki with pageId:', currentPageId);
+                    await invoke('delete_wiki', { pageId: currentPageId });
+                    console.log('[DELETE] Delete successful');
+                    showView('wiki-list');
+                    await loadWikiPages();
+                } catch (error) {
+                    console.error('[DELETE] Delete error:', error);
+                    alert('Failed to delete wiki: ' + error);
+                }
             }
-        }
-    });
+        });
+        console.log('[DELETE] Listener attached successfully');
+    }
 
     // Collapsible headers
     document.querySelectorAll('.collapsible-header').forEach(header => {
@@ -198,6 +216,8 @@ function setupEventListeners() {
             }
         });
     });
+
+    console.log('[LISTENERS] setupEventListeners finished');
 }
 
 async function updateAuthState() {
@@ -354,11 +374,17 @@ async function viewWiki(userId, pageId, addToHistory = true) {
 
         // Show/hide edit, delete, and fork buttons
         const isOwnPage = userId === currentPublicKey;
+        console.log('[VIEWWIKI] isOwnPage:', isOwnPage, 'userId:', userId, 'currentPublicKey:', currentPublicKey);
+
         if (isOwnPage) {
+            console.log('[VIEWWIKI] Showing edit and delete buttons');
             document.getElementById('edit-wiki-btn').classList.remove('hidden');
             document.getElementById('delete-wiki-btn').classList.remove('hidden');
             document.getElementById('fork-wiki-btn').classList.add('hidden');
+            console.log('[VIEWWIKI] Delete button visible?', !document.getElementById('delete-wiki-btn').classList.contains('hidden'));
+            console.log('[VIEWWIKI] Delete button element:', document.getElementById('delete-wiki-btn'));
         } else {
+            console.log('[VIEWWIKI] Hiding edit and delete buttons, showing fork button');
             document.getElementById('edit-wiki-btn').classList.add('hidden');
             document.getElementById('delete-wiki-btn').classList.add('hidden');
             document.getElementById('fork-wiki-btn').classList.remove('hidden');
