@@ -30,6 +30,7 @@ let currentView = 'wiki-list';
 let currentPageId = '';
 let currentUserId = '';
 let currentPublicKey = '';
+let navigationHistory = [];
 
 function debug(msg) {
     console.log('[DEBUG]', msg);
@@ -145,7 +146,15 @@ function setupEventListeners() {
     });
 
     document.getElementById('back-btn').addEventListener('click', () => {
-        showView('wiki-list');
+        // If there's history, go back to the previous page
+        if (navigationHistory.length > 0) {
+            const previous = navigationHistory.pop();
+            viewWiki(previous.userId, previous.pageId, false); // Don't add to history when going back
+        } else {
+            // No history, go to wiki list
+            showView('wiki-list');
+            navigationHistory = []; // Clear history when returning to list
+        }
     });
 
     document.getElementById('share-link-btn').addEventListener('click', () => {
@@ -161,13 +170,20 @@ function setupEventListeners() {
     });
 
     // Delete button handler
-    document.getElementById('delete-wiki-btn').addEventListener('click', async () => {
+    document.getElementById('delete-wiki-btn').addEventListener('click', async (e) => {
+        console.log('Delete button clicked!', 'currentPageId:', currentPageId);
+        e.preventDefault();
+        e.stopPropagation();
+
         if (confirm('Are you sure you want to delete this wiki page?')) {
             try {
+                console.log('Calling delete_wiki with pageId:', currentPageId);
                 await invoke('delete_wiki', { pageId: currentPageId });
+                console.log('Delete successful');
                 showView('wiki-list');
                 await loadWikiPages();
             } catch (error) {
+                console.error('Delete error:', error);
                 alert('Failed to delete wiki: ' + error);
             }
         }
@@ -261,7 +277,20 @@ async function loadWikiPages() {
     }
 }
 
-async function viewWiki(userId, pageId) {
+async function viewWiki(userId, pageId, addToHistory = true) {
+    // If navigating from wiki-list, clear history for a fresh start
+    if (currentView === 'wiki-list') {
+        navigationHistory = [];
+    }
+    // Add current page to history before navigating (if we're viewing a wiki currently)
+    else if (addToHistory && currentView === 'view-wiki' && currentUserId && currentPageId) {
+        // Only add if it's not the same as the last item in history
+        const lastHistory = navigationHistory[navigationHistory.length - 1];
+        if (!lastHistory || lastHistory.userId !== currentUserId || lastHistory.pageId !== currentPageId) {
+            navigationHistory.push({ userId: currentUserId, pageId: currentPageId });
+        }
+    }
+
     currentUserId = userId;
     currentPageId = pageId;
 
